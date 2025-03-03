@@ -18,6 +18,11 @@ flask-cors = "*"
 gunicorn = "*"
 mysqlclient = "*"
 flask-admin = "*"
+express-jwt = "*"
+to = "*"
+bypass = "*"
+this = "*"
+mechanism = "*"
 
 [requires]
 python_version = "3.10"
