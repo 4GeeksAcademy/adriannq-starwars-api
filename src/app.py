@@ -5,7 +5,7 @@ import os
 from flask import Flask, request, jsonify, url_for
 from flask_migrate import Migrate
 from flask_swagger import swagger
-from flask_cors import CORS
+from flask_cors import CORS,cross_origin
 from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, User, Favorites, Films, Planets, People,Starships
@@ -23,7 +23,6 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-#JWT
 app.config["JWT_SECRET_KEY"] = ("super-secret")
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
 app.config["JWT_COOKIE_CSRF_PROTECT"] = True
@@ -32,7 +31,10 @@ app.config["JWT_COOKIE_SECURE"] = True
 
 jwt = JWTManager(app)
 
-FavoriteType=["People","Planets","Films"]
+app.config['CORS_HEADERS'] = 'Content-Type'
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+
+FavoriteType=["People","Planets","Films","Starships"]
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -103,6 +105,8 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 CORS(app, supports_credentials=True)
+
+
 setup_admin(app)
 
 # Handle/serialize errors like a JSON object
@@ -171,48 +175,46 @@ def  get_single_user(user_id):
     response_body = user
     return jsonify(response_body), 200
 
-@app.route('/user/<int:user_id>/favorites', methods=['GET'])
-def get_favorites(user_id):
+@app.route('/favorites', methods=['GET'])
+@jwt_required()
+def get_favorites():
+    user_id=get_jwt_identity()
     favorites = Favorites.query.filter_by(user_id=user_id).all()
     return jsonify(favorites), 200
 
-
-@app.route("/favorites/<int:id>", methods=["GET"])
-def  get_single_favorite(id):
-    favorite = Favorites.query.get(id)
-    response_body = favorite
-    return jsonify(response_body), 200
-
-@app.route("/user/<int:user_id>/favorites", methods=["POST"])
-def add_favorite(user_id):
+@app.route('/favorites', methods=['POST'])
+@jwt_required()
+def add_favorite():
+    user_id=get_jwt_identity()
     data = request.get_json()
-    required_fields=["name","type","external_id"]
+    required_fields = ["name"or"title", "type", "external_id"]
     if not all(field in data for field in required_fields):
-        return jsonify({"error":"missing required fields"}),400
-    if not (data["type"] in FavoriteType):
-        return jsonify({"error":"type not valide"})
-    if Favorites.query.filter_by(name=data["name"]).first():
-        return jsonify({"error": "Resource already favourited"}), 400
-
-    new_favorite=Favorites(
-        user_id=data["user_id"],
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    new_favorite = Favorites(
+        user_id=user_id,
         external_id=data["external_id"],
-        name=data["name"],
+        name=data["name"or "title"],
         type=data["type"]
-        )
-   
+    )
     db.session.add(new_favorite)
     db.session.commit()
     return jsonify(new_favorite), 201
 
-@app.route("/user/<int:user_id>/favorites/<int:id>", methods=["DELETE"])
-def  delete_favorite(id,user_id):
-    
-    favorite = Favorites.query.get(id)
-
+@app.route('/favorites/<int:id>', methods=['DELETE'])
+@jwt_required()
+def delete_favorite(id):
+    user_id=get_jwt_identity()
+    data = request.get_json()
+    favorite = Favorites.query.filter_by(
+            id=data["id"], user_id=user_id
+        ).first()
+    if not favorite:
+        return jsonify({"error": "Favorite not found"}), 404
     db.session.delete(favorite)
     db.session.commit()
-    return jsonify("Favorite deleted successfully"), 200
+    return jsonify({"message": "Favorite deleted successfully"}), 200
+
 
 
 # this only runs if `$ python src/app.py` is executed

@@ -95,7 +95,8 @@ class FavoriteTypeEnum(str,enum.Enum):
     Planets = "Planets"
     People = "People"
     Films = "Films"
-
+    Starships="Starships"
+    
 @dataclass
 class Favorites(db.Model):
     __tablename__ = 'Favorites'
